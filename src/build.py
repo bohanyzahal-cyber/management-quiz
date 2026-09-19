@@ -14,11 +14,12 @@ HERE   = os.path.dirname(os.path.abspath(__file__))
 REPO   = os.path.dirname(HERE)                     # .../management-quiz
 COURSE = os.path.dirname(REPO)                     # תיקיית הקורס
 
-# (קובץ יעד, שם קובץ המילון שלצידו) — בתיקיית הקורס שמות הקבצים שונים
+# (קובץ יעד, המילון שלצידו, דף הנגן של הפודקאסט) — כל קישור יחסי לתיקייה של
+# הקובץ עצמו, ובתיקיית הקורס שמות הקבצים והנתיבים שונים
 TARGETS = [
-    (os.path.join(REPO, "index.html"), "מילון-מושגים.html"),
+    (os.path.join(REPO, "index.html"), "מילון-מושגים.html", "podcast/index.html"),
     (os.path.join(COURSE, "בוחן תרגול - שיטות וכלי ניהול מתקדמים.html"),
-     "מילון מושגים - שיטות וכלי ניהול מתקדמים.html"),
+     "מילון מושגים - שיטות וכלי ניהול מתקדמים.html", "management-quiz/podcast/index.html"),
 ]
 
 def bank_files():
@@ -30,18 +31,21 @@ tpl  = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
 bank = "\n".join(open(f, encoding="utf-8").read() for f in bank_files())
 html = tpl.replace("/*__BANK__*/", bank)
 
-# קישורים לעזרים נוספים (מילון מושגים וכד') — מוצגים רק אם הקובץ קיים
-def aids_for(gloss_name):
-    if not os.path.exists(os.path.join(REPO, "מילון-מושגים.html")):
-        return ""
-    href = gloss_name.replace('"', "&quot;")
-    return ('<div class="aids"><a class="aid" href="' + href + '" target="_blank" rel="noopener">'
-            '<i>📖</i><span><b>מילון מושגים</b> · כל המונחים באנגלית ובעברית, לפי שיעור — לשינון לפני המבחן</span></a></div>')
+# קישורים לעזרים נוספים (מילון מושגים, פודקאסט) — כל אחד מוצג רק אם הקובץ קיים
+def aids_for(gloss_name, podcast_href):
+    items = []
+    if os.path.exists(os.path.join(REPO, "מילון-מושגים.html")):
+        items.append('<a class="aid" href="' + gloss_name.replace('"', "&quot;") + '" target="_blank" rel="noopener">'
+                     '<i>📖</i><span><b>מילון מושגים</b> · כל המונחים באנגלית ובעברית, לפי שיעור — לשינון לפני המבחן</span></a>')
+    if os.path.exists(os.path.join(REPO, "podcast", "index.html")):
+        items.append('<a class="aid" href="' + podcast_href + '" target="_blank" rel="noopener">'
+                     '<i>🎧</i><span><b>פודקאסט</b> · פרק לכל נושא, עם שאלות לדרך — להאזנה בדרכים</span></a>')
+    return ('<div class="aids">' + "".join(items) + "</div>") if items else ""
 
-for t, gloss_name in TARGETS:
-    open(t, "w", encoding="utf-8").write(html.replace("<!--AIDS-->", aids_for(gloss_name)))
+for t, gloss_name, podcast_href in TARGETS:
+    open(t, "w", encoding="utf-8").write(html.replace("<!--AIDS-->", aids_for(gloss_name, podcast_href)))
     print("נכתב:", t)
-html = html.replace("<!--AIDS-->", aids_for(TARGETS[0][1]))
+html = html.replace("<!--AIDS-->", aids_for(TARGETS[0][1], TARGETS[0][2]))
 print("גודל: %.0f KB" % (len(html) / 1024))
 
 # ---------- סטטיסטיקה ----------
