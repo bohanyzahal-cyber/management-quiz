@@ -28,6 +28,7 @@ import os
 import re
 import ssl
 import sys
+import time
 import urllib.request
 
 for stream in (sys.stdout, sys.stderr):
@@ -104,14 +105,15 @@ def nakdan(text):
                        "patachma": False, "keepmetagim": False}).encode("utf-8")
     req = urllib.request.Request(API, data=body,
                                  headers={"Content-Type": "application/json"})
-    for attempt in range(4):
+    for attempt in range(6):
         try:
             with urllib.request.urlopen(req, timeout=60, context=_ctx) as r:
                 items = json.loads(r.read().decode("utf-8"))
             break
         except Exception as e:
-            if attempt == 3:
+            if attempt == 5:
                 raise RuntimeError(f"Nakdan נכשל: {e}") from e
+            time.sleep(2 * (attempt + 1))     # השרת מחזיר לפעמים 502 רגעי
     out = []
     for it in items:
         if it.get("sep"):

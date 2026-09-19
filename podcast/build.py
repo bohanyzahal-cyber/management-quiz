@@ -60,6 +60,7 @@ PLANNED = [
     ("05", "בקרה — עיתויים, סוגים ובנצ'מרקינג"),
     ("06", "צוותים — קונפליקט, שלבי טקמן וסוגי צוותים"),
     ("07", "חזרה למבחן — הדגשים של המרצה ומושגים שמתבלבלים"),
+    ("08", "חדשנות, שינוי ותרבות ארגונית — אחרי שיעורים 11 עד 13"),
 ]
 
 # ffmpeg מקודד הכל מחדש לפרמטר אחיד, כך שגם קטעי השקט מתחברים חלק
@@ -318,7 +319,8 @@ def write_index():
     soon = [(n, t) for n, t in PLANNED if n not in built]
     parts = [INDEX_HEAD.replace("__COURSE__", COURSE)]
     count = f"{len(rows)} פרקים" if len(rows) != 1 else "פרק אחד"
-    extra = f" · {len(soon)} נוספים בהכנה" if soon else ""
+    extra = ("" if not soon else " · פרק נוסף בהכנה" if len(soon) == 1
+             else f" · {len(soon)} נוספים בהכנה")
     parts.append(f'<p class="tot">{count} · {hebrew_duration(total)}{extra}</p>\n')
     parts.append(INDEX_NAV)
     for num, title, name, d, size in rows:
