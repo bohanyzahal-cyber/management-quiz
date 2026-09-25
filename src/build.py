@@ -6,6 +6,8 @@
 סכמת שאלה (בקובצי bank*.js):
   {l:5, t:"נושא", s:"מקור", q:"השאלה", o:["א","ב","ג","ד"], c:1, e:"הסבר"}
   l = מספר השיעור (1-13), c = אינדקס התשובה הנכונה לפני הערבוב.
+מבחן המוכנות (ready.js, var READY=[...]) באותה סכמה, מחוץ לבנק: הוא לא מופיע בתרגול
+ובהדפסה, ולכן נבדק גם שאין בו שאלה שדומה לשאלה מהבנק.
 """
 import os, sys, re, glob, json, subprocess, tempfile
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -29,7 +31,9 @@ def bank_files():
 
 tpl  = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
 bank = "\n".join(open(f, encoding="utf-8").read() for f in bank_files())
-html = tpl.replace("/*__BANK__*/", bank)
+READY_JS = os.path.join(HERE, "ready.js")
+ready = open(READY_JS, encoding="utf-8").read() if os.path.exists(READY_JS) else "var READY=[];"
+html = tpl.replace("/*__BANK__*/", bank).replace("/*__READY__*/", ready)
 
 # קישורים לעזרים נוספים (מילון מושגים, פודקאסט) — כל אחד מוצג רק אם הקובץ קיים
 def aids_for(gloss_name, podcast_href):
@@ -67,6 +71,8 @@ for k, v in sorted(topics.items(), key=lambda x: -x[1]):
 print("לפי מקור:")
 for k, v in sorted(srcs.items(), key=lambda x: -x[1]):
     print("  %-16s %3d" % (k, v))
+ready_l = [int(x) for x in re.findall(r'\{l:(\d+),t:"', ready)]
+print("מבחן מוכנות: %d שאלות" % len(ready_l))
 
 cs = re.findall(r',c:(\d),e:"', bank)
 dist = {}
@@ -93,6 +99,9 @@ def update_readme():
     for k in sorted(lects):
         lines.append("| %d | %s | %d |" % (k, LNAME.get(k, ""), lects[k]))
     src_line = " · ".join("%s (%d)" % (k, v) for k, v in sorted(srcs.items(), key=lambda x: -x[1]))
+    if ready_l:
+        src_line += "\n\n**מבחן מוכנות:** %d שאלות נוספות משיעורים %d–%d, מחוץ לבנק (לא מופיעות בתרגול ובהדפסה)" % (
+            len(ready_l), min(ready_l), max(ready_l))
     top_line = " · ".join("%s (%d)" % (k, v) for k, v in topics.items())
     block = (
         "<!-- STATS:START — נוצר אוטומטית על ידי src/build.py, אין לערוך ידנית -->\n"
@@ -176,8 +185,55 @@ try:
             print("  תקין — ללא כפילויות, שדות חסרים או מסיחים תלויי-מיקום.")
         for k in s.get("key", []):
             print("  !! מפתח תשובה:", k)
+        if ready_l:
+            open(jsf, "w", encoding="utf-8").write(ready.replace("var READY", "var BANK", 1))
+            r = subprocess.run(["node", chk, jsf], capture_output=True, text=True, encoding="utf-8")
+            if r.returncode != 0:
+                raise RuntimeError((r.stderr or "")[:300])
+            s = json.loads(r.stdout.strip())
+            print("\nבדיקות מבנה — מבחן מוכנות (%d שאלות):" % s["n"])
+            for e in s["err"]:
+                print("  !!", e)
+            for k in s.get("key", []):
+                print("  !! מפתח תשובה:", k)
+            if not s["err"]:
+                print("  תקין.")
 except Exception as e:
     print("\n(בדיקות המבנה דילגו — נדרש node:", e, ")")
+
+# ---------- מבחן המוכנות לא חוזר על שאלות מהבנק ----------
+# אם שאלה במבחן המוכנות דומה לשאלה שכבר תורגלה, הציון שוב מודד זיכרון ולא שליטה בחומר.
+def stems(js):
+    return [x.replace('\\"', '"') for x in re.findall(r'q:"((?:[^"\\]|\\.)*)"', js)]
+
+def words(t):
+    out = set()
+    for w in re.findall(r"[\wא-ת']+", t):
+        w = re.sub(r"^(וכש|כש|וה|וב|ול|ומ|ה|ב|ל|מ|ש|ו|כ)(?=[א-ת]{3})", "", w)
+        if len(w) >= 3:
+            out.add(w)
+    return out
+
+if ready_l:
+    bank_stems = [(x, words(x)) for x in stems(bank)]
+    close = []
+    for rq in stems(ready):
+        rw = words(rq)
+        best, bq = 0.0, ""
+        for bq_, bw in bank_stems:
+            if not rw or not bw:
+                continue
+            j = len(rw & bw) / len(rw | bw)
+            if j > best:
+                best, bq = j, bq_
+        if best >= 0.45:
+            close.append((best, rq, bq))
+    print("\nמבחן מוכנות מול הבנק:")
+    if close:
+        for j, rq, bq in sorted(close, reverse=True):
+            print("  !! דומה (%.2f): %s\n       בבנק: %s" % (j, rq[:70], bq[:70]))
+    else:
+        print("  תקין — אין שאלה שדומה לשאלה מהבנק.")
 
 # ---------- בדיקת "תל האורך" ----------
 # כשכותבים שאלות בכמות, התשובה הנכונה יוצאת כמעט תמיד הארוכה ביותר,
@@ -234,6 +290,9 @@ try:
             txt = open(f, encoding="utf-8").read()
             if report(length_stats(txt, td, name), name):
                 bad_files.append(name)
+        if ready_l:
+            if report(length_stats(ready.replace("var READY", "var BANK", 1), td, "ready"), "ready.js"):
+                bad_files.append("ready.js")
         print("  " + "-" * 58)
         all_stats = length_stats(bank, td, "all")
         report(all_stats, "סה\"כ")
