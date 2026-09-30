@@ -111,7 +111,7 @@ a.back{color:var(--accent);font-size:13px;text-decoration:none;}
 <body>
 <div class="wrap">
 <h1>מילון מושגים — שיטות וכלי ניהול מתקדמים</h1>
-<div class="sub">__TOTAL__ מושגים מ-__N__ שיעורים · המונח באנגלית כפי שמופיע בשקפים, ההסבר בעברית כפי שניתן בכיתה · <a class="back" href="__QUIZ__">→ חזרה לבוחן התרגול</a></div>
+<div class="sub">__TOTAL__ מושגים מ-__N__ שיעורים · מונחים מהשקפים ומהדיון בכיתה, באנגלית ובהסבר בעברית · <a class="back" href="__QUIZ__">→ חזרה לבוחן התרגול</a></div>
 <div class="bar">
   <input id="q" type="search" placeholder="חיפוש מונח (עברית או אנגלית)…" autocomplete="off">
   <span class="count" id="cnt"></span>
