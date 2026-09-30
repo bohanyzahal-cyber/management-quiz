@@ -94,8 +94,6 @@ def load_overrides():
 
 
 _ctx = ssl.create_default_context()
-_ctx.check_hostname = False
-_ctx.verify_mode = ssl.CERT_NONE
 
 
 def nakdan(text):
