@@ -194,13 +194,15 @@ mark.key{background:var(--warnBg);color:inherit;padding:0 3px;border-radius:4px;
 
 (function(){
 "use strict";
-var LET=["א","ב","ג","ד"];
-/* מקורות השאלות — צבע התווית ליד כל שאלה */
+var LET=["א","ב","ג","ד","ה"];
+/* מקורות השאלות — צבע התווית ליד כל שאלה.
+   "מרצה" = שאלות הדוגמה שהמרצה הציגה; "מבנה" = שאלות שנכתבו במבנה שלה (חמש תשובות, סדר קבוע). */
 var SRC_META={
   "מצגת":{bg:"var(--clsBg)",fg:"var(--clsTx)",full:"מהמצגת"},
   "זום":{bg:"var(--warnBg)",fg:"var(--warnTx)",full:"דגש מהקלטת הזום"},
   "סיכום":{bg:"var(--sumBg)",fg:"var(--sumTx)",full:"מהסיכום"},
   "מרצה":{bg:"var(--okBg)",fg:"var(--okTx)",full:"שאלה לדוגמה מהמרצה"},
+  "מבנה":{bg:"var(--accentSoft)",fg:"var(--accent)",full:"במבנה של המרצה"},
   "מבחן":{bg:"var(--hardBg)",fg:"var(--hardTx)",full:"בסגנון מבחן — רמה קשה"}
 };
 /* שמות השיעורים לפי הסילבוס */
@@ -221,8 +223,10 @@ var READY_Q=(typeof READY!=="undefined"&&READY)||[];
 
 function E(tag,attr,html){var e=document.createElement(tag);if(attr)for(var k in attr)e.setAttribute(k,attr[k]);if(html!=null)e.innerHTML=html;return e;}
 function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
-function srcOK(s){return sel.src==="all"||s===sel.src;}
-function filterBank(){return BANK.filter(function(x){return sel.lects.indexOf(x.l)>=0 && sel.topics.indexOf(x.t)>=0 && srcOK(x.s);});}
+/* sel.src: "all", שם של מקור, או "fx" = כל השאלות במבנה המבחן (חמש תשובות), של המרצה ושנכתבו במבנה שלה */
+var FXN=BANK.filter(function(q){return q.fx;}).length;
+function srcOK(q){return sel.src==="all"||(sel.src==="fx"?!!q.fx:q.s===sel.src);}
+function filterBank(){return BANK.filter(function(x){return sel.lects.indexOf(x.l)>=0 && sel.topics.indexOf(x.t)>=0 && srcOK(x);});}
 function countBy(key,val){return BANK.filter(function(b){return b[key]===val;}).length;}
 function fmt(s){var m=Math.floor(s/60),x=s%60;return m+":"+(x<10?"0":"")+x;}
 function srcBg(s){return (SRC_META[s]||{}).bg||"var(--surface2)";}
@@ -234,14 +238,16 @@ function rich(s){return String(s).replace(/⟦([^⟧]*)⟧/g,'<mark class="key">
   var parts=SOURCES.map(function(s){return (SRC_META[s]||{full:s}).full+" ("+countBy("s",s)+")";}).join(" · ");
   document.getElementById("sub").textContent=
     BANK.length+" שאלות מ-"+LECT.length+" שיעורים — "+parts+
-    ". המבחן: 20 שאלות אמריקאיות, 5 נקודות לשאלה, שאלה או שתיים מכל שיעור.";
+    ". המבחן: 20 שאלות אמריקאיות עם חמש תשובות, 5 נקודות לשאלה, שאלה או שתיים מכל שיעור.";
 })();
 
-/* מערבב את סדר התשובות בכל שאלה, כדי שהתשובה הנכונה לא תהיה תמיד באותו מקום */
+/* מערבב את סדר התשובות בכל שאלה, כדי שהתשובה הנכונה לא תהיה תמיד באותו מקום.
+   שאלות במבנה המבחן (fx) נשארות בסדר קבוע, כי «תשובות א' וג' נכונות» מפנה לאותיות. */
 function prepQ(q){
-  var order=shuffle([0,1,2,3]);
+  var order=q.o.map(function(_,i){return i;});
+  if(!q.fx)shuffle(order);
   var opts=order.map(function(i){return q.o[i];});
-  return {l:q.l,t:q.t,s:q.s,q:q.q,o:opts,c:order.indexOf(q.c),e:q.e};
+  return {l:q.l,t:q.t,s:q.s,q:q.q,o:opts,c:order.indexOf(q.c),e:q.e,fx:q.fx};
 }
 function buildQuiz(){
   var arr=filterBank().map(prepQ);
@@ -284,16 +290,28 @@ function setup(){
   var c=E("div",{"class":"card"});
 
   c.appendChild(E("div",{"class":"note"},
-    "<b>המבחן:</b> 20 שאלות אמריקאיות, 5 נקודות לשאלה, 90% מהציון · צפוי להיות <b>בחומר סגור</b> · "+
+    "<b>המבחן:</b> 20 שאלות אמריקאיות, 5 נקודות לשאלה, 90% מהציון · לפי שאלות הדוגמה של המרצה, חמש תשובות לכל שאלה · צפוי להיות <b>בחומר סגור</b> · "+
     "לפי המרצה: שאלה או שתיים מכל שיעור, «המבחן לא מסובך אבל גם לא קל — הממוצע יהיה סביב 80». "+
     "מועד: כנראה יום ראשון בבוקר, 25.10 או 1.11 (נאמר בשיעורים 10 ו־11). המרצה אמרה שהמבחן לא יתקיים במועד המקורי ביום חמישי. תאריך סופי טרם פורסם, ויש לוודא אותו באתר הקורס.<br>"+
-    "<b>דגש מ־22.9:</b> המרצה תיארה שאלות בסיסיות, שאלות חשיבה ויישום ושאלות מאתגרות, וביקשה לחזור על המודלים, התיאוריות, הרעיונות, הכלים והשיטות. בפתיחת פרק התקשורת אמרה: «יש פה הרבה מאוד מושגים שאני לא אבחן מה זה, אבל אתם צריכים להבין אותם». מיקוד ושאלות לדוגמה מתוכננים לשיעור האחרון.<br>"+
+    "<b>דגש מ־22.9:</b> המרצה תיארה שאלות בסיסיות, שאלות חשיבה ויישום ושאלות מאתגרות, וביקשה לחזור על המודלים, התיאוריות, הרעיונות, הכלים והשיטות. בפתיחת פרק התקשורת אמרה: «יש פה הרבה מאוד מושגים שאני לא אבחן מה זה, אבל אתם צריכים להבין אותם».<br>"+
     "<b>איך לתרגל:</b> ב<b>מצב תרגול</b> מקבלים משוב והסבר אחרי כל שאלה, ובסוף הסבב אפשר לתרגל רק את השגויות. "+
     "ב<b>סימולציית מבחן</b> עונים על הכל ורק בסוף מקבלים ציון וסקירה של כל שגיאה — ברירת המחדל היא בדיוק כמו במבחן: "+
     "20 שאלות, שאלה או שתיים מכל שיעור.<br>"+
-    "<b>המקורות:</b> שאלות «מהמצגת» בנויות מהשקפים שנדונו בכיתה; שאלות «דגש מהקלטת הזום» בנויות ממה שהמרצה הסבירה, הדגישה ונתנה כדוגמה בהקלטות."+
+    "<b>המקורות:</b> שאלות «מהמצגת» בנויות מהשקפים; שאלות «דגש מהקלטת הזום» בנויות ממה שהמרצה הסבירה, הדגישה ונתנה כדוגמה בהקלטות."+
     (countBy("s","מבחן")?"<br><b>רמה קשה:</b> שאלות «בסגנון מבחן» בנויות כמו שאלות מבחן: תרחיש בלי רמז לשקף, מסיחים שנבדלים במילה אחת, ושאלות «מה לא נכון». בהסבר מודגשת המילה שמכריעה. בוחרים אותן בשורת המקור.":"")+
     (READY_Q.length?"<br><b>מבחן מוכנות:</b> בתחתית העמוד. "+READY_Q.length+" שאלות שלא מופיעות בתרגול, כדי לבדוק שליטה בחומר ולא זיכרון של שאלות.":"")));
+
+  /* המיקוד מהשיעור האחרון, 6.10.2026: נושאי האב, מבנה השאלות והעצות של המרצה */
+  c.appendChild(E("div",{"class":"note"},
+    "<b>מיקוד מהשיעור האחרון (6.10):</b> במבחן תשעה נושאי אב, ולכל אחד תתי־נושאים: פרק המבוא, תכנון, ארגון, מנהיגות, בקרה, ניהול צוותים, "+
+    "ניהול שינוי ארגוני, תקשורת בארגון ותרבות ארגונית. שמונת הראשונים באתר, בשיעורים 1–11. תרבות ארגונית תתווסף כשיעלו המצגת וההקלטה של השיעור האחרון. "+
+    "לפי המרצה, נושאים ושקפים שלא נסקרו בכיתה, לא בהקלטות ולא בסיכום, לא יהיו במבחן; מיעוט משאלות «מהמצגת» עוסק בשקפים כאלה, והן ייבדקו מול הסיכום.<br>"+
+    (FXN?"<b>מבנה השאלות במבחן:</b> חמש תשובות, א–ה. בשאלות הדוגמה של המרצה התשובה האחרונה היא תמיד מיוחדת, «תשובות א' וג' נכונות» או «אף אחת מן התשובות אינה נכונה», "+
+    "ויש גם «כל התשובות נכונות». בשתיים מחמש הדוגמאות התשובה המשולבת היא הנכונה, ולכן צריך לבדוק כל משפט בנפרד. הנוסח קצר, ושמות המודלים באנגלית: PATH-GOAL THEORY, NORMING.<br>"+
+    "<b>איך לתרגל את המבנה:</b> בשורת «מקור» בוחרים «במבנה המבחן — חמש תשובות»: "+FXN+" שאלות, מהן "+countBy("s","מרצה")+" שאלות הדוגמה של המרצה עם המפתח שלה. "+
+    "בשאלות האלה סדר התשובות קבוע. בשאר השאלות באתר יש ארבע תשובות, והן מתרגלות את החומר עצמו.<br>":"")+
+    "<b>העצות של המרצה:</b> לסכם פרק פרק · להתחיל ללמוד כבר עכשיו · להבין, כדי לדעת לאיזה נושא כל שאלה שייכת · "+
+    "«חצי מהתשובה נמצאת בשאלה»: לקרוא לאט, ולא להילחץ · מי שיודע את החומר מסיים בחצי שעה."));
 
   /* mode */
   var row1=E("div",{"class":"toolbar"});
@@ -328,7 +346,10 @@ function setup(){
   if(SOURCES.length>1){
     var row3=E("div",{"class":"toolbar"});
     row3.appendChild(E("span",{"class":"lbl"},"מקור:"));
-    [["all","הכל",BANK.length]].concat(SOURCES.map(function(s){return [s,(SRC_META[s]||{full:s}).full,countBy("s",s)];}))
+    /* לשאלות שנכתבו במבנה של המרצה אין שבב משלהן: השבב «במבנה המבחן» בוחר אותן יחד עם שאלות המרצה */
+    [["all","הכל",BANK.length]]
+    .concat(SOURCES.filter(function(s){return s!=="מבנה";}).map(function(s){return [s,(SRC_META[s]||{full:s}).full,countBy("s",s)];}))
+    .concat(FXN?[["fx","במבנה המבחן — חמש תשובות",FXN]]:[])
     .forEach(function(o){
       var b=E("button",{"class":"chip"+(sel.src===o[0]?" active":"")},o[1]+" <small>"+o[2]+"</small>");
       b.onclick=function(){sel.src=o[0];setup();};
@@ -584,13 +605,13 @@ function pResults(){
   },null);
 }
 
-/* מקלדת, במסך של שאלה: חץ שמאלה = הבאה, חץ ימינה = הקודמת (האתר מימין לשמאל), 1-4 = בחירת תשובה */
+/* מקלדת, במסך של שאלה: חץ שמאלה = הבאה, חץ ימינה = הקודמת (האתר מימין לשמאל), 1-5 = בחירת תשובה */
 document.addEventListener("keydown",function(ev){
   if(!app.querySelector(".qtext")||ev.ctrlKey||ev.metaKey||ev.altKey)return;
   var bs=app.querySelectorAll(".nav .btn");
   if(ev.key==="ArrowLeft"&&bs[1]&&!bs[1].disabled){ev.preventDefault();bs[1].click();}
   else if(ev.key==="ArrowRight"&&bs[0]&&!bs[0].disabled){ev.preventDefault();bs[0].click();}
-  else if(/^[1-4]$/.test(ev.key)){
+  else if(/^[1-5]$/.test(ev.key)){
     var o=app.querySelectorAll(".opt")[+ev.key-1];
     if(o&&o.className.indexOf("locked")<0){ev.preventDefault();o.click();}
   }

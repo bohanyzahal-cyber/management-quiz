@@ -8,6 +8,9 @@
   l = מספר השיעור (1-13), c = אינדקס התשובה הנכונה לפני הערבוב.
 מבחן המוכנות (ready.js, var READY=[...]) באותה סכמה, מחוץ לבנק: הוא לא מופיע בתרגול
 ובהדפסה, ולכן נבדק גם שאין בו שאלה שדומה לשאלה מהבנק.
+שאלות במבנה המבחן של המרצה (exam5.js): חמש תשובות, c בין 0 ל-4, והשדה fx:1. האתר אינו מערבב בהן
+את סדר התשובות, כי תשובה כמו «תשובות א' וג' נכונות» מפנה לאותיות. הן מצטרפות לבנק אחרי bank*.js,
+ובדיקת האורכים (שמניחה ארבע תשובות) אינה חלה עליהן; המפתח שלהן נבדק ב-check.py exam5.
 """
 import os, sys, re, glob, json, subprocess, tempfile
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -33,7 +36,10 @@ tpl  = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
 bank = "\n".join(open(f, encoding="utf-8").read() for f in bank_files())
 READY_JS = os.path.join(HERE, "ready.js")
 ready = open(READY_JS, encoding="utf-8").read() if os.path.exists(READY_JS) else "var READY=[];"
-html = tpl.replace("/*__BANK__*/", bank).replace("/*__READY__*/", ready)
+EXAM5_JS = os.path.join(HERE, "exam5.js")
+exam5 = open(EXAM5_JS, encoding="utf-8").read() if os.path.exists(EXAM5_JS) else ""
+full_bank = bank + ("\n" + exam5 if exam5 else "")       # מה שנכנס לעמוד: ארבע תשובות, ואחריהן חמש
+html = tpl.replace("/*__BANK__*/", full_bank).replace("/*__READY__*/", ready)
 
 # קישורים לעזרים נוספים (מילון מושגים, פודקאסט) — כל אחד מוצג רק אם הקובץ קיים
 def aids_for(gloss_name, podcast_href):
@@ -53,7 +59,7 @@ html = html.replace("<!--AIDS-->", aids_for(TARGETS[0][1], TARGETS[0][2]))
 print("גודל: %.0f KB" % (len(html) / 1024))
 
 # ---------- סטטיסטיקה ----------
-objs = re.findall(r'\{l:(\d+),t:"(.*?)",s:"(.*?)",q:', bank)
+objs = re.findall(r'\{l:(\d+),t:"(.*?)",s:"(.*?)",q:', full_bank)
 objs = [(int(l), t.replace('\\"', '"'), s.replace('\\"', '"')) for l, t, s in objs]
 print("\nשאלות:", len(objs))
 
@@ -73,14 +79,19 @@ for k, v in sorted(srcs.items(), key=lambda x: -x[1]):
     print("  %-16s %3d" % (k, v))
 ready_l = [int(x) for x in re.findall(r'\{l:(\d+),t:"', ready)]
 print("מבחן מוכנות: %d שאלות" % len(ready_l))
+cs5 = re.findall(r',c:(\d),e:".*",fx:1\},\s*$', exam5, re.M)
+n5 = len(cs5)
+if n5:
+    print("במבנה המבחן (חמש תשובות, סדר קבוע): %d שאלות · מפתח: %s" % (
+        n5, " ".join("%s %d" % ("אבגדה"[i], cs5.count(str(i))) for i in range(5))))
 
 cs = re.findall(r',c:(\d),e:"', bank)
 dist = {}
 for c in cs:
     dist[c] = dist.get(c, 0) + 1
 print("\nפיזור אינדקס התשובה הנכונה במקור:", dict(sorted(dist.items())))
-if len(cs) != len(objs):
-    print("!! אזהרה: לא כל השאלות נותחו (%d מתוך %d)" % (len(cs), len(objs)))
+if len(cs) + n5 != len(objs):
+    print("!! אזהרה: לא כל השאלות נותחו (%d מתוך %d)" % (len(cs) + n5, len(objs)))
 
 # ---------- עדכון אוטומטי של ה-README ----------
 def update_readme():
@@ -105,11 +116,13 @@ def update_readme():
     top_line = " · ".join("%s (%d)" % (k, v) for k, v in topics.items())
     block = (
         "<!-- STATS:START — נוצר אוטומטית על ידי src/build.py, אין לערוך ידנית -->\n"
-        "**%d שאלות** בפורמט המבחן — רב-ברירתי (אמריקאי), 4 תשובות לשאלה.\n\n"
+        "**%d שאלות** רב-ברירתיות (אמריקאיות): %d עם ארבע תשובות%s.\n\n"
         "%s\n\n"
         "**לפי מקור:** %s\n\n"
         "**נושאים:** %s\n"
-        % (len(objs), "\n".join(lines), src_line, top_line)
+        % (len(objs), len(objs) - n5,
+           (", ו-%d במבנה המבחן של המרצה: חמש תשובות בסדר קבוע, כולל תשובות משולבות" % n5) if n5 else "",
+           "\n".join(lines), src_line, top_line)
     )
     open(path, "w", encoding="utf-8").write(txt[:i] + block + txt[j:])
     print("עודכן:", path)
@@ -128,10 +141,12 @@ BANK.forEach((q,i)=>{
   const at=`#${i} ${(q.q||'').slice(0,40)}`;
   if(typeof q.l!=='number'||q.l<1||q.l>13)  err.push(at+' — מספר שיעור חסר/שגוי');
   if(!q.t||!q.s||!q.q||!q.e)             err.push(at+' — שדה חסר');
-  if(!Array.isArray(q.o)||q.o.length!==4) err.push(at+' — אין בדיוק 4 אפשרויות');
-  else if(new Set(q.o).size!==4)          err.push(at+' — אפשרות כפולה');
-  if(typeof q.c!=='number'||q.c<0||q.c>3) err.push(at+' — c מחוץ לתחום');
-  if((q.o||[]).some(o=>POS.test(o)))      err.push(at+' — מסיח תלוי-מיקום');
+  const N=q.fx?5:4;   /* fx = שאלה במבנה המבחן של המרצה: חמש תשובות בסדר קבוע */
+  if(!Array.isArray(q.o)||q.o.length!==N) err.push(at+' — אין בדיוק '+N+' אפשרויות');
+  else if(new Set(q.o).size!==N)          err.push(at+' — אפשרות כפולה');
+  if(typeof q.c!=='number'||q.c<0||q.c>=N) err.push(at+' — c מחוץ לתחום');
+  if(!q.fx&&(q.o||[]).some(o=>POS.test(o))) err.push(at+' — מסיח תלוי-מיקום');
+  if(q.fx&&!/ נכונות$|אינה נכונה$/.test((q.o||[])[4]||'')) err.push(at+' — במבנה המבחן התשובה האחרונה משולבת או «אף אחת»');
   (q.o||[]).forEach((o)=>{
     const w=String(o).split(/\s+/);
     for(let k=0;k+1<w.length;k++){
@@ -154,7 +169,7 @@ const toks=s=>{const o=new Set();String(s).split(/[^\wא-ת]+/).forEach(w=>{
   if(w.length>=4 && !STOP.has(w)) o.add(stem(w));});return o;};
 const key=[];
 BANK.forEach((q,i)=>{
-  if(!q.e||!Array.isArray(q.o)) return;
+  if(!q.e||!Array.isArray(q.o)||q.fx) return;   /* בשאלות fx ההסבר עובר על כל המשפטים */
   const E=toks(q.e);
   const sc=q.o.map(o=>{const O=toks(o);let n=0;O.forEach(x=>{if(E.has(x))n++;});
                        return O.size? n/Math.sqrt(O.size):0;});
@@ -168,7 +183,7 @@ console.log(JSON.stringify({n:BANK.length,err,key}));
 try:
     with tempfile.TemporaryDirectory() as td:
         jsf = os.path.join(td, "all.js")
-        open(jsf, "w", encoding="utf-8").write(bank)
+        open(jsf, "w", encoding="utf-8").write(full_bank)
         chk = os.path.join(td, "struct.js")
         open(chk, "w", encoding="utf-8").write(STRUCT)
         r = subprocess.run(["node", chk, jsf], capture_output=True, text=True, encoding="utf-8")
@@ -215,7 +230,7 @@ def words(t):
     return out
 
 if ready_l:
-    bank_stems = [(x, words(x)) for x in stems(bank)]
+    bank_stems = [(x, words(x)) for x in stems(full_bank)]
     close = []
     for rq in stems(ready):
         rw = words(rq)
