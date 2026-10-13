@@ -172,6 +172,13 @@ mark.key{background:var(--warnBg);color:inherit;padding:0 3px;border-radius:4px;
   .pq{margin-bottom:2.6mm;}
   .pq .pt{font-size:7.6pt;color:#666;}
   .pq .pe{font-size:8.8pt;}
+  /* שאלות, ואחריהן מפתח תשובות והסברים בעמוד נפרד */
+  .pcols,.pkey{column-count:2;column-gap:8mm;column-rule:1px solid #ccc;}
+  .pkey{break-before:page;page-break-before:always;}
+  .pkey h3{column-span:all;font-size:12pt;margin:0 0 3mm;padding-bottom:2mm;border-bottom:1.5px solid #000;}
+  .pk{break-inside:avoid;margin-bottom:2.2mm;font-size:8.8pt;}
+  .pk b{color:var(--accent);}
+  .pk .pe{color:var(--muted);}
 }
 </style>
 </head>
@@ -1017,15 +1024,19 @@ function setup(){
   /* הדפסה */
   var pr=E("div",{"class":"toolbar"});
   pr.style.marginTop="12px";
-  pr.appendChild(E("span",{"class":"lbl"},"הדפסה:"));
-  var p1=E("button",{"class":"iconbtn"},"🖨 השאלות עם התשובות");
-  p1.onclick=function(){printSheet(true);};
-  var p2=E("button",{"class":"iconbtn"},"🖨 השאלות בלבד");
-  p2.onclick=function(){printSheet(false);};
-  pr.appendChild(p1);pr.appendChild(p2);
+  pr.appendChild(E("span",{"class":"lbl"},"הדפסה לתרגול על נייר:"));
+  var p0=E("button",{"class":"iconbtn"},"🖨 שאלות, והתשובות בסוף");
+  p0.onclick=function(){printSheet("end");};
+  var p1=E("button",{"class":"iconbtn"},"🖨 תשובה והסבר מתחת לכל שאלה");
+  p1.onclick=function(){printSheet("in");};
+  var p2=E("button",{"class":"iconbtn"},"🖨 שאלות בלבד");
+  p2.onclick=function(){printSheet("none");};
+  pr.appendChild(p0);pr.appendChild(p1);pr.appendChild(p2);
   c.appendChild(pr);
   c.appendChild(E("div",{"class":"scopehint"},
-    "מדפיס את "+n+" השאלות שנבחרו למעלה — לפי השיעורים, הנושאים והמקור."));
+    "מדפיס את "+n+" השאלות שנבחרו למעלה — לפי השיעורים, הנושאים והמקור. כדי להדפיס שיעור אחד, משאירים רק אותו מסומן. "+
+    "«התשובות בסוף» מתאים לתרגול בלי מסך: עונים על הדף, ובודקים מול מפתח התשובות וההסברים שבעמודים האחרונים. "+
+    "בחלון ההדפסה אפשר גם לשמור כ־PDF."));
 
   app.appendChild(c);
   if(READY_Q.length)app.appendChild(readyCard());
@@ -1068,23 +1079,35 @@ function readyStart(){
 }
 
 /* ---------- גיליון הדפסה ---------- */
-function printSheet(withAnswers){
+/* mode: "end" השאלות, ואחריהן מפתח תשובות והסברים בעמוד נפרד · "in" תשובה והסבר מתחת לכל שאלה · "none" שאלות בלבד */
+function printSheet(mode){
   var arr=filterBank();
   if(!arr.length){alert("לא נבחרו שאלות להדפסה.");return;}
   var box=document.getElementById("print");
-  box.className = withAnswers ? "" : "cols";
+  box.className = mode==="none" ? "cols" : "";
   var esc=function(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML;};
+  var expl=function(q){return esc(q.e).replace(/⟦([^⟧]*)⟧/g,"<b>$1</b>");};
+  var sub={"end":"מפתח התשובות וההסברים בסוף","in":"עם תשובות והסברים","none":"ללא תשובות"}[mode];
   var h='<div class="prhead"><h2>בוחן תרגול — שיטות וכלי ניהול מתקדמים</h2><div>'+
-        arr.length+" שאלות · "+(withAnswers?"עם תשובות והסברים":"ללא תשובות")+"</div></div>";
+        arr.length+" שאלות · "+sub+"</div></div>";
+  if(mode==="end") h+='<div class="pcols">';
   arr.forEach(function(q,i){
     h+='<div class="pq"><div class="pt">שיעור '+q.l+' · '+esc(q.t)+'</div>'+
        '<div><span class="pn">'+(i+1)+'.</span> '+esc(q.q)+'</div>';
     q.o.forEach(function(o,k){ h+='<div class="po">'+LET[k]+". "+esc(o)+"</div>"; });
-    if(withAnswers)
+    if(mode==="in")
       h+='<div class="po pa">✔ '+LET[q.c]+". "+esc(q.o[q.c])+'</div>'+
-         '<div class="po pe">'+esc(q.e).replace(/⟦([^⟧]*)⟧/g,"<b>$1</b>")+"</div>";
+         '<div class="po pe">'+expl(q)+"</div>";
     h+="</div>";
   });
+  if(mode==="end"){
+    h+='</div><div class="pkey"><h3>מפתח תשובות והסברים</h3>';
+    arr.forEach(function(q,i){
+      h+='<div class="pk"><b>'+(i+1)+". "+LET[q.c]+"</b> · "+esc(q.o[q.c])+
+         '<div class="pe">'+expl(q)+"</div></div>";
+    });
+    h+="</div>";
+  }
   box.innerHTML=h;
   window.print();
 }
